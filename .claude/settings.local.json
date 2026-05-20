@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(tree /F 'C:\\\\Users\\\\HHS\\\\source\\\\repos\\\\EshopModularMonoliths\\\\src' | Where-Object { $_ -notmatch '\\(bin|obj|\\\\.vs|Properties\\)' } | Select-Object -First 150)"
+    ]
+  }
+}

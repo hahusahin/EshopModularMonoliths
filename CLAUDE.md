@@ -7,7 +7,7 @@ EshopModularMonoliths — a tutorial project following the Udemy course:
 
 ## About the Developer
 
-- Expert frontend developer, learning .NET backend for the first time
+- Expert frontend developer (React & Angular), learning .NET backend for the first time
 - Goal: become a fullstack developer
 - Comes from a VS Code background — not yet familiar with Visual Studio IDE
 - Little knowledge of ASP.NET — explain .NET and backend concepts clearly, don't assume prior backend familiarity. 
