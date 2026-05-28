@@ -20,6 +20,13 @@ EshopModularMonoliths/          ← repo root (git, .editorconfig, .gitignore, R
 - Visual Studio is opened by pointing it at `src/`.
 - Config files that apply repo-wide (`.editorconfig`, `.gitignore`) live at the repo root — EditorConfig traverses up the directory tree so this works correctly.
 
+## Build Progress Log
+
+Step-by-step record of everything built in this project, in order:
+→ [`docs/progress.md`](docs/progress.md)
+
+After finishing each development step (developer will tell you when), add a new section to that file describing what was done.
+
 ## About the Developer
 
 - Expert frontend developer (React & Angular), learning .NET backend for the first time

@@ -13,4 +13,4 @@ app.UseCatalogModule()
    .UseBasketModule()
    .UseOrderingModule();
 
-app.Run(); 
+app.Run();
