@@ -1,246 +1,108 @@
-# EshopModularMonoliths — Step-by-Step Build Log
+# EshopModularMonoliths — Build Log
 
-> This document tracks every development step from project creation to the current state.
-> It is meant to serve as a future reference: "if I start this from scratch, what do I do and in what order?"
->
-> **How to maintain:** After finishing each logical development step, add a new section at the bottom.
+> Quick reference: what was built, in what order, and why.
 
 ---
 
-## Step 0 — Repository Initialization
-
-**What happened:** Created the git repository with just the essentials.
-
-**Files created:**
-- `.gitignore` — tells git which files/folders to ignore (e.g. `bin/`, `obj/`, `.vs/`)
-- `README.md` — empty placeholder
+## Step 0 — Repo Init
+Created git repo with `.gitignore` and empty `README.md`.
 
 ---
 
-## Step 1 — Solution & Project Setup
+## Step 1 — Solution & Projects
+Created the VS solution at `src/` with 5 projects:
 
-**What happened:** Created the Visual Studio solution and all projects inside `src/`. The architecture is a **Modular Monolith**: one deployable application (`Bootstrapper/Api`) that internally contains separate, isolated modules.
-
-**Solution file:**
-- `src/eshop-modular-monoliths.sln` — the Visual Studio solution that references all projects
-
-**Projects created (each is a separate  `.csproj`):**
-
-| Project | Path | Purpose |
+| Project | Path | Role |
 |---|---|---|
-| `Api` | `src/Bootstrapper/Api/` | The single entry point — hosts the ASP.NET Web API, composes all modules | Empty API project
-| `Catalog` | `src/Modules/Catalog/Catalog/` | Catalog module (products) | Class Library
-| `Basket` | `src/Modules/Basket/Basket/` | Basket module | Class Library
-| `Ordering` | `src/Modules/Ordering/Ordering/` | Ordering module | Class Library
-| `Shared` | `src/Shared/Shared/` | Shared library — base classes and contracts reused across all modules | Class Library
+| `Api` | `Bootstrapper/Api/` | Single entry point, hosts the web API |
+| `Catalog` | `Modules/Catalog/Catalog/` | Products module |
+| `Basket` | `Modules/Basket/Basket/` | Basket module |
+| `Ordering` | `Modules/Ordering/Ordering/` | Ordering module |
+| `Shared` | `Shared/Shared/` | Base classes and contracts shared across modules |
 
-**Key structural decisions:**
-- `Bootstrapper/Api` references all module projects via `<ProjectReference>` in its `.csproj`
-- Module projects reference `Shared` (added later when needed)
-- Each module started with just a placeholder `Class1.cs` — to be replaced with real code
-- `Api` targets `net8.0` with `Microsoft.NET.Sdk.Web`; modules use the plain `Microsoft.NET.Sdk`
-
-**Files added to `Api`:**
-- `Program.cs` — minimal web app boilerplate (`WebApplication.CreateBuilder` + `app.Run()`)
-- `appsettings.json` + `appsettings.Development.json` — default config files
-- `Properties/launchSettings.json` — local dev launch profiles (HTTP/HTTPS URLs)
+`Api` references all modules via `<ProjectReference>`. Modules reference `Shared`.
 
 ---
 
-## Step 2 — Module Registration Pattern (Wiring Up Dependencies)
+## Step 2 — Module Registration Pattern
+Each module exposes two static extension methods called from `Program.cs`:
+- `AddXxxModule(services, config)` — registers DI services
+- `UseXxxModule(app)` — registers middleware/startup logic
 
-**What happened:** Removed the placeholder `Class1.cs` from every module and established the **module registration pattern**: each module exposes two static extension methods that the `Api` bootstrapper calls.
-
-**The pattern (same structure in every module):**
-
-```csharp
-// Example: CatalogModule.cs
-public static class CatalogModule
-{
-    // Called in Program.cs → builder.Services.AddCatalogModule(config)
-    // Registers all DI services this module needs (DbContext, handlers, etc.)
-    public static IServiceCollection AddCatalogModule(this IServiceCollection services, IConfiguration configuration)
-    {
-        // ... register services
-        return services;
-    }
-
-    // Called in Program.cs → app.UseCatalogModule()
-    // Adds any middleware or startup logic this module needs
-    public static IApplicationBuilder UseCatalogModule(this IApplicationBuilder app)
-    {
-        // ... configure pipeline
-        return app;
-    }
-}
-```
-
-**Files created:**
-- `src/Modules/Catalog/Catalog/CatalogModule.cs`
-- `src/Modules/Basket/Basket/BasketModule.cs`
-- `src/Modules/Ordering/Ordering/OrderingModule.cs`
-
-**`Program.cs` updated** to call all modules in the two-phase pattern:
-```csharp
-// Phase 1 — register services
-builder.Services
-    .AddCatalogModule(builder.Configuration)
-    .AddBasketModule(builder.Configuration)
-    .AddOrderingModule(builder.Configuration);
-
-// Phase 2 — configure HTTP pipeline
-app.UseCatalogModule()
-   .UseBasketModule()
-   .UseOrderingModule();
-```
-
-**NuGet packages added to `Shared.csproj`:**
-- `MediatR` — for CQRS (Commands/Queries/Events dispatching)
-- `Microsoft.AspNetCore.Http.Abstractions` — gives access to `IApplicationBuilder`
-- `Microsoft.Extensions.Configuration.Abstractions` — gives access to `IConfiguration`
-- `Microsoft.Extensions.DependencyInjection.Abstractions` — gives access to `IServiceCollection`
-
-**`GlobalUsing.cs` added to `Api`** — project-wide using statements so you don't repeat `using` directives in every file.
+NuGet added to `Shared`: `MediatR`, `Microsoft.AspNetCore.Http.Abstractions`, `Microsoft.Extensions.*`.
 
 ---
 
-## Step 3 — DDD Base Classes in Shared Module
-
-**What happened:** Removed the placeholder `Class1.cs` from `Shared` and built the **Domain-Driven Design (DDD) building blocks** that all modules will use. These are abstract base classes and interfaces that encode rules like "every entity has an Id and audit timestamps" and "aggregates can raise domain events."
-
-**Files created in `src/Shared/Shared/DDD/`:**
-
-### `IDomainEvent.cs`
-### `IEntity.cs`
-### `IAggregate.cs`
-### `Entity.cs`
-### `Aggregate.cs`
-
-## Step 4 — Product Aggregate & Domain Events (Catalog Module)
-
-**What happened:** Created the first real domain model — the `Product` aggregate in the Catalog module.
-
-**Files created:**
-
-### `src/Modules/Catalog/Catalog/Products/Models/Product.cs`
-The `Product` class is the **Aggregate Root** of the Catalog module.
-- Inherits `Aggregate<Guid>` (which gives it an Id and domain event management)
-- Properties: `Name`, `Category` (list of strings), `Description`, `ImageFile`, `Price`
-- All setters are `private` — the only way to change the product is through its methods (this is the DDD rule: aggregates protect their own state)
-- **Factory method `Create()`** — static method to construct a new Product; validates inputs and raises `ProductCreatedEvent`
-- **`Update()` method** — modifies the product; raises `ProductPriceChangedEvent` only if the price actually changed
-
-### `src/Modules/Catalog/Catalog/Products/Events/ProductCreatedEvent.cs`
-A C# `record` — immutable value object carrying the product that was just created.
-
-### `src/Modules/Catalog/Catalog/Products/Events/ProductPriceChangedEvent.cs`
-
-## Step 5 — Docker & PostgreSQL Setup
-
-**What happened:** Added Docker support so the PostgreSQL database can be run locally as a container — no need to install PostgreSQL directly on the machine. 
-
-**How:** By built-in right click on the project: Add - Container Orchestrator Support
-
-**Files created:**
-
-### `src/Bootstrapper/Api/Dockerfile`
-
-### `src/docker-compose.yml`
-Declares the services. Currently just `eshopdb` (the PostgreSQL container):
-```yaml
-services:
-  eshopdb:
-    image: postgres
-```
-
-### `src/docker-compose.override.yml`
-Development-specific overrides (credentials, port mapping):
-```yaml
-services:
-  eshopdb:
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=EShopDb
-    ports:
-      - "5432:5432"   # host:container
-```
-
-**`Api.csproj` updated:**
-- Added `Microsoft.EntityFrameworkCore.Design` — needed at build time for EF Core tooling (migrations)
-- Added `Microsoft.VisualStudio.Azure.Containers.Tools.Targets` — enables VS Docker integration
-
-**`launchSettings.json` updated** — new "Docker" launch profile added so you can run the app in a container directly from Visual Studio.
+## Step 3 — DDD Base Classes (`Shared/DDD/`)
+Built the building blocks all modules inherit from:
+- `IEntity` / `Entity<TId>` — base entity with Id and audit fields
+- `IAggregate` / `Aggregate<TId>` — extends Entity, adds `DomainEvents` list + `AddDomainEvent()` / `ClearDomainEvents()`
+- `IDomainEvent` — marker interface (extends MediatR's `INotification`)
 
 ---
 
-## Step 6 — EF Core Data Layer (Catalog Module + Shared Infrastructure)
+## Step 4 — Product Aggregate (`Catalog/Products/Models/`)
+First real domain model:
+- `Product : Aggregate<Guid>` — properties all have `private set`; state only changes through methods
+- `Product.Create()` — factory method, validates input, raises `ProductCreatedEvent`
+- `Product.Update()` — raises `ProductPriceChangedEvent` only if price actually changed
+- `ProductCreatedEvent` / `ProductPriceChangedEvent` — immutable records carrying the product data
 
-**What happened:** Wired up the full data persistence layer using **Entity Framework Core** with a PostgreSQL database. This step spans both the `Shared` project (reusable infrastructure) and the `Catalog` module (concrete implementation).
+---
 
-### 6a — Shared Data Infrastructure (`src/Shared/Shared/Data/`)
+## Step 5 — Docker & PostgreSQL
+Added Docker support via VS right-click → Add Container Orchestrator Support:
+- `Dockerfile` — containerizes the API
+- `docker-compose.yml` — declares `eshopdb` (postgres image)
+- `docker-compose.override.yml` — dev credentials + port `5432:5432`
 
-**NuGet packages added to `Shared.csproj`:**
-- `Npgsql.EntityFrameworkCore.PostgreSQL` — PostgreSQL driver for EF Core
-- `Microsoft.EntityFrameworkCore` — the ORM itself
-- `Microsoft.EntityFrameworkCore.Tools` — CLI tools for migrations (`dotnet ef migrations add ...`)
+---
 
-#### `Seed/IDataSeeder.cs`
-Contract for "seed initial data into the database on startup." Each module implements this to populate its own tables.
+## Step 6 — EF Core Data Layer
 
-#### `Interceptors/AuditableEntityInterceptor.cs`
-An EF Core **SaveChanges interceptor** — runs automatically every time EF Core saves changes to the database. It sets the audit fields (`CreatedAt`, `CreatedBy`, `LastModified`, `LastModifiedBy`) on any entity implementing `IEntity`.
+**Shared infrastructure (`Shared/Data/`):**
+- `AuditableEntityInterceptor` — SaveChanges interceptor; auto-sets `CreatedAt`, `LastModified`
+- `DispatchDomainEventsInterceptor` — SaveChanges interceptor; collects domain events from all tracked aggregates, publishes each via `mediator.Publish()` before the DB write
+- `IDataSeeder` — contract for seeding initial data on startup
+- `Extensions.UseMigration<T>()` — applies pending migrations + runs seeders on startup
 
-#### `Interceptors/DispatchDomainEventsInterceptor.cs`
-Another SaveChanges interceptor. Right before saving, it:
-1. Finds all tracked aggregates (`IAggregate`) that have pending domain events
-2. Clears those events from the aggregate
-3. Publishes each event via **MediatR** (`mediator.Publish(domainEvent)`)
+**Catalog data layer (`Catalog/Data/`):**
+- `CatalogDbContext` — module-scoped DbContext (each module has its own)
+- `ProductConfiguration` — Fluent API mapping for the `products` table
+- `InitialCreate` migration — auto-generated, creates `catalog.Products`
+- `CatalogDataSeeder` — inserts 4 seed products on first run
 
-This is the mechanism that connects "something changed in the database" to "domain event handlers run."
+**`CatalogModule.cs` updated** to register MediatR, both interceptors, `CatalogDbContext`, and `CatalogDataSeeder`.
 
-#### `Extensions.cs` — `UseMigration<TContext>()` extension method
+---
 
-A reusable extension that modules call on startup. It:
-1. Applies any pending EF Core migrations (`MigrateAsync`) — creates/updates the DB schema automatically
-2. Runs all registered `IDataSeeder` implementations
+## Step 7 — CQRS Interfaces (`Shared/CQRS/`)
+Thin wrapper interfaces over MediatR to enforce the Commands/Queries split:
+- `ICommand` / `ICommand<TResponse>` — marks a class as a write operation
+- `ICommandHandler<TCommand>` / `ICommandHandler<TCommand, TResponse>` — handles a command
+- `IQuery<TResponse>` — marks a class as a read operation
+- `IQueryHandler<TQuery, TResponse>` — handles a query
 
-### 6b — Catalog Data Layer (`src/Modules/Catalog/Catalog/Data/`)
+---
 
-#### `CatalogDbContext.cs`
-The EF Core `DbContext` for the Catalog module. Each module has its own `DbContext` — this is the Modular Monolith pattern for data isolation.
+## Step 8 — Catalog Feature Handlers
+One folder per feature under `Catalog/Products/Features/`. Each folder contains a single file with 3 things: result record, command/query record, handler class.
 
-#### `Configurations/ProductConfiguration.cs`
-Fluent API configuration — maps the `Product` C# class to a SQL table, defining column types, constraints, max lengths:
+| Feature | Type | Returns |
+|---|---|---|
+| `CreateProduct` | Command | `CreateProductResult(Guid Id)` |
+| `UpdateProduct` | Command | `Unit` (nothing) |
+| `DeleteProduct` | Command | `Unit` (nothing) |
+| `GetProducts` | Query | `GetProductsResult(IEnumerable<ProductDto>)` |
+| `GetProductById` | Query | `GetProductByIdResult(ProductDto)` |
+| `GetProductByCategory` | Query | `GetProductByCategoryResult(IEnumerable<ProductDto>)` |
 
-#### `Migrations/20260521122554_InitialCreate.cs`
-Auto-generated by EF Core after running `dotnet ef migrations add InitialCreate`. Creates the `catalog.Products` table with the correct columns.
+Queries use `.AsNoTracking()` (read-only, no change tracking overhead). Mapster's `.Adapt<T>()` converts `Product` entities to `ProductDto` before returning.
 
-#### `Seed/InitialData.cs` + `Seed/CatalogDataSeeder.cs`
-Seed data: 4 products are inserted the first time the app starts if the table is empty.
+---
 
-### 6c — Connecting Everything in `CatalogModule.cs`
+## Step 9 — Domain Event Handlers (`Catalog/Products/EventHandlers/`)
+- `ProductCreatedEventHandler` — handles `ProductCreatedEvent`; currently logs only
+- `ProductPriceChangedEventHandler` — handles `ProductPriceChangedEvent`; currently logs; TODO: publish integration event to update Basket prices
 
-The `AddCatalogModule()` method was updated to register all the new services:
-```csharp
-services.AddMediatR(...);                                    // register CQRS handlers
-services.AddScoped<ISaveChangesInterceptor, AuditableEntityInterceptor>();
-services.AddScoped<ISaveChangesInterceptor, DispatchDomainEventsInterceptor>();
-services.AddDbContext<CatalogDbContext>((sp, options) => {
-    options.AddInterceptors(sp.GetServices<ISaveChangesInterceptor>());
-    options.UseNpgsql(connectionString);
-});
-services.AddScoped<IDataSeeder, CatalogDataSeeder>();
-```
-
-And `UseCatalogModule()` now calls:
-```csharp
-app.UseMigration<CatalogDbContext>(); // auto-migrate + seed on startup
-```
-
-**`appsettings.json` updated** with the PostgreSQL connection string:
-```json
-"ConnectionStrings": {
-  "Database": "Server=localhost;Port=5432;Database=EShopDb;User Id=postgres;Password=postgres;Include Error Detail=true"
-}
-```
+Both implement `INotificationHandler<T>` (MediatR). Auto-discovered at startup by `AddMediatR(RegisterServicesFromAssembly(...))`.
