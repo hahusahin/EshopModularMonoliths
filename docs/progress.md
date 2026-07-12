@@ -121,3 +121,60 @@ Both implement `INotificationHandler<T>` (MediatR). Auto-discovered at startup b
 - `app.MapCarter()` — Phase 2: calls `AddRoutes()` on each registered module, activating all routes
 
 6 endpoints added covering full CRUD + category/id queries. Each follows the same flow: Carter routes the request → Mapster maps Request DTO → MediatR Command/Query → Handler → Response DTO → HTTP result.
+
+---
+
+## Step 11 — Validation Pipeline (`Shared/Behaviors/ValidationBehavior.cs`)
+MediatR `IPipelineBehavior` that runs before the handler. Constrained to `where TRequest : ICommand<TResponse>` — only commands are validated, queries skip it. Injects all `IValidator<TRequest>`, runs them, throws `ValidationException` on failure so the handler never runs.
+
+Validators sit next to their command in the feature file: `CreateProductCommandValidator`, `UpdateProductCommandValidator`, `DeleteProductCommandValidator` (`AbstractValidator<T>`).
+
+`CatalogModule.cs`: `config.AddOpenBehavior(typeof(ValidationBehavior<,>))` + `services.AddValidatorsFromAssembly(...)` (auto-registers every validator).
+
+NuGet to `Shared`: `FluentValidation` (+ `.AspNetCore`, `.DependencyInjectionExtensions`).
+
+---
+
+## Step 12 — Logging Pipeline (`Shared/Behaviors/LoggingBehavior.cs`)
+Second `IPipelineBehavior`, applied to **all** requests. Logs `[START]` / `[END]` around `next()`, times it with a `Stopwatch`, and logs a `[PERFORMANCE]` warning if it took > 3 seconds.
+
+Registered the same way: `config.AddOpenBehavior(typeof(LoggingBehavior<,>))`. Nesting follows registration order: `Logging → Validation → Handler`.
+
+---
+
+## Step 13 — Global Exception Handling
+Handlers used to `throw new Exception("Product not found")` → API returned 500 for what is really a 404.
+
+**`Shared/Exceptions/`:** `NotFoundException` (has an `(name, key)` overload), `BadRequestException`, `InternalServerException`.
+
+**`Catalog/Products/Exceptions/ProductNotFoundException : NotFoundException`** — now thrown by `GetProductById`, `UpdateProduct`, `DeleteProduct`.
+
+**`Shared/Exceptions/Handlers/CustomExceptionHandler.cs`** — implements `IExceptionHandler`; `switch` maps exception type → status code (Validation/BadRequest → 400, NotFound → 404, else 500) and returns an RFC-7807 `ProblemDetails` body with `traceId`, plus field errors for `ValidationException`.
+
+`Program.cs`: `AddExceptionHandler<CustomExceptionHandler>()` + `app.UseExceptionHandler(options => { })`.
+
+---
+
+## Step 14 — Structured Logging (Serilog + Seq)
+NuGet to `Api`: `Serilog.AspNetCore`, `Serilog.Sinks.Seq`.
+
+`Program.cs`: `builder.Host.UseSerilog(...ReadFrom.Configuration(...))` replaces the default logger; `app.UseSerilogRequestLogging()` emits one structured line per HTTP request.
+
+`appsettings.json`: old `Logging` section commented out, replaced by a `Serilog` section — sinks (Console + Seq at `:5341`), enrichers (machine name, process/thread id), and `Properties` stamped on every event.
+
+`docker-compose`: added `seq` (`datalust/seq:latest`) — UI on `:9091`, ingestion on `:5341`. Also set compose project `name: eshop-app`, `restart: always` → `"no"`.
+
+Point of Seq: logs become queryable data, not text.
+
+---
+
+## Step 15 — Pagination (`Shared/Pagination/`)
+`GetProducts` was returning every row in the table.
+
+- `PaginatedRequest(int PageIndex = 0, int PageSize = 10)`
+- `PaginatedResult<TEntity>(pageIndex, pageSize, count, data)` — page + total count
+
+`GetProductsEndpoint`: `[AsParameters] PaginatedRequest request` binds `?pageIndex=&pageSize=` from the query string.
+`GetProductsHandler`: `LongCountAsync()` for the total, then `.Skip(pageSize * pageIndex).Take(pageSize)`.
+
+> Offset pagination degrades on deep pages — the DB still scans what it skips. Keyset/cursor is the scale-grade alternative; fine for a catalog UI.

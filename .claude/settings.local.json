@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "PowerShell(tree /F 'C:\\\\Users\\\\HHS\\\\source\\\\repos\\\\EshopModularMonoliths\\\\src' | Where-Object { $_ -notmatch '\\(bin|obj|\\\\.vs|Properties\\)' } | Select-Object -First 150)",
-      "Bash(docker compose *)"
+      "Bash(docker compose *)",
+      "mcp__visualize__read_me",
+      "mcp__visualize__show_widget"
     ]
   }
 }

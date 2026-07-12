@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Shared.Behaviors;
 using Shared.Data.Interceptors;
 
 namespace Catalog;
@@ -16,7 +17,10 @@ public static class CatalogModule
         services.AddMediatR(config => // register MediatR
         {
             config.RegisterServicesFromAssembly(Assembly.GetExecutingAssembly());
+            config.AddOpenBehavior(typeof(ValidationBehavior<,>));
+            config.AddOpenBehavior(typeof(LoggingBehavior<,>));
         });
+        services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly()); // registers all Fluent validations
 
         // 3.register Data / Infrastructure layer related services
         var connectionString = configuration.GetConnectionString("Database");
