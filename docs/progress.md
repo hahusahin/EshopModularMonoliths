@@ -175,3 +175,29 @@ Start of the Basket module:
 - `Price` / `ProductName` — a snapshot copied from Catalog when the item is added
 
 Both become tables (one-to-many).
+
+---
+
+## Step 17 — Basket Data Layer (`Basket/Data/`)
+Same shape as Catalog's:
+- `BasketDbContext` — own schema (`basket`), applies configurations from the assembly
+- `ShoppingCartConfiguration` — PK, unique index on `UserName`, one-to-many to `Items` (`WithOne()` has no inverse nav — child never points back to the root)
+- `ShoppingCartItemConfiguration` — PK + required columns
+- `InitialCreate` migration
+
+**`BasketModule.cs` updated** — registers both interceptors + `BasketDbContext`, and `UseMigration<BasketDbContext>()` on startup. No seeder (a basket starts empty).
+
+---
+
+## Step 18 — Basket Feature Handlers (`Basket/Basket/Features/`)
+One folder per use case, one file each: command/query record + result record + validator + handler.
+
+| Feature | Type | Returns |
+|---|---|---|
+| `CreateBasket` | Command | `CreateBasketResult(Guid Id)` |
+| `AddItemIntoBasket` | Command | `AddItemIntoBasketResult(Guid Id)` |
+| `RemoveItemFromBasket` | Command | `RemoveItemFromBasketResult(Guid Id)` |
+| `DeleteBasket` | Command | `DeleteBasketResult(bool IsSuccess)` |
+| `GetBasket` | Query | `GetBasketResult(ShoppingCartDto)` |
+
+Every handler follows the same script: **load the aggregate → call a domain method → `SaveChangesAsync` → return**. No business rules in the handlers — `AddItem` / `RemoveItem` live on `ShoppingCart`.

@@ -44,9 +44,9 @@ public static class CatalogModule
         // Configure the HTTP request pipeline (add your custom middlewares)
         // 1.Implement custom middleware related to Presentation (API / Endpoint) layer
 
-        // 1.Implement custom middleware related to Application / Use Case layer
+        // 2.Implement custom middleware related to Application / Use Case layer
 
-        // 1.Implement custom middleware related to Data / Infrastructure layer
+        // 3.Implement custom middleware related to Data / Infrastructure layer
         app.UseMigration<CatalogDbContext>(); // implement generic migration extension method to auto-migrate
 
         return app;

@@ -1,23 +1,49 @@
 ﻿
-
 using Microsoft.AspNetCore.Builder;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Shared.Data;
+using Shared.Data.Interceptors;
 
-namespace Basket
+namespace Basket;
+
+public static class BasketModule
 {
-    public static class BasketModule
+    public static IServiceCollection AddBasketModule(this IServiceCollection services, IConfiguration configuration)
     {
-        public static IServiceCollection AddBasketModule(this IServiceCollection services, IConfiguration configuration)
-        {
-            
-            return services;
-        }
+        //////////// Add services to DI container one by one (by each layer) ////////////
 
-        public static IApplicationBuilder UseBasketModule(this IApplicationBuilder app)
+        // 1.register Presentation (API / Endpoint) layer related services
+
+        // 2.register Application / Use Case layer related services
+
+        // 3.register Data / Infrastructure layer related services
+        var connectionString = configuration.GetConnectionString("Database");
+
+        services.AddScoped<ISaveChangesInterceptor, AuditableEntityInterceptor>();
+        services.AddScoped<ISaveChangesInterceptor, DispatchDomainEventsInterceptor>();
+
+        services.AddDbContext<BasketDbContext>((sp, options) =>
         {
-            // Configure the HTTP request pipeline
-            return app;
-        }
+            options.AddInterceptors(sp.GetServices<ISaveChangesInterceptor>());
+            options.UseNpgsql(connectionString);
+        });
+
+        return services;
+    }
+
+    public static IApplicationBuilder UseBasketModule(this IApplicationBuilder app)
+    {
+        //////////// Configure the HTTP request pipeline ////////////
+
+        // 1.Implement custom middleware related to Presentation (API / Endpoint) layer
+
+        // 2.Implement custom middleware related to Application / Use Case layer
+
+        // 3.Implement custom middleware related to Data / Infrastructure layer
+        app.UseMigration<BasketDbContext>();
+
+        return app;
     }
 }
