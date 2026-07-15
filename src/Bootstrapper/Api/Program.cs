@@ -4,11 +4,17 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseSerilog((context, config) =>
     config.ReadFrom.Configuration(context.Configuration));
 
-// Register all staff to DI from the given assemblies that implements ICarterModule
-builder.Services
-    .AddCarterWithAssemblies(typeof(CatalogModule).Assembly);
+// 1. Add COMMON services (carter, mediatr, fluentvalidation) to the container
+var catalogAssembly = typeof(CatalogModule).Assembly;
+var basketAssembly = typeof(BasketModule).Assembly;
 
-// Add our module services to the container
+// 1.1 Register all staff to DI from the given assemblies that implements ICarterModule
+builder.Services.AddCarterWithAssemblies(catalogAssembly, basketAssembly);
+
+// 1.2 Register both MediatR and FluentValidation (from extension method)
+builder.Services.AddMediatRWithAssemblies(catalogAssembly, basketAssembly);
+
+// 2. Add MODULE services (catalog, basket, ordering) to the container
 builder.Services
     .AddCatalogModule(builder.Configuration)
     .AddBasketModule(builder.Configuration)

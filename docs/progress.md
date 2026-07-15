@@ -201,3 +201,13 @@ One folder per use case, one file each: command/query record + result record + v
 | `GetBasket` | Query | `GetBasketResult(ShoppingCartDto)` |
 
 Every handler follows the same script: **load the aggregate → call a domain method → `SaveChangesAsync` → return**. No business rules in the handlers — `AddItem` / `RemoveItem` live on `ShoppingCart`.
+
+---
+
+## Step 19 — Basket API Endpoints (Presentation Layer)
+Same Carter + REPR pattern as Catalog. One endpoint file per feature under `Basket/Basket/Features/`: `CreateBasket`, `GetBasket`, `AddItemIntoBasket`, `RemoveItemFromBasket`, `DeleteBasket`. Each maps Request → Command/Query → Response and returns the matching HTTP result.
+
+---
+
+## Step 20 — Centralized MediatR Registration (`Shared/Extensions/MediatRExtentions.cs`)
+MediatR + FluentValidation + both pipeline behaviors were being registered in every module. Moved into one extension `AddMediatRWithAssemblies(params Assembly[])` and called **once** in `Program.cs` with all module assemblies. Modules no longer register MediatR themselves.

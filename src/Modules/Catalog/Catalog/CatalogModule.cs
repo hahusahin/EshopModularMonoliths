@@ -1,7 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Shared.Behaviors;
 using Shared.Data.Interceptors;
 
 namespace Catalog;
@@ -14,13 +13,7 @@ public static class CatalogModule
         // 1.register Presentation (API / Endpoint) layer related services
 
         // 2.register Application / Use Case layer related services
-        services.AddMediatR(config => // register MediatR
-        {
-            config.RegisterServicesFromAssembly(Assembly.GetExecutingAssembly());
-            config.AddOpenBehavior(typeof(ValidationBehavior<,>));
-            config.AddOpenBehavior(typeof(LoggingBehavior<,>));
-        });
-        services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly()); // registers all Fluent validations
+        ////// MediatR ve FluentValidation, common olduğu için ana bootstrapper API project te yani program.cs de kaydedildi ///////
 
         // 3.register Data / Infrastructure layer related services
         var connectionString = configuration.GetConnectionString("Database");
