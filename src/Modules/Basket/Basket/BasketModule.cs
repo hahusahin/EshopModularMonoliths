@@ -1,6 +1,4 @@
-﻿
-using Microsoft.AspNetCore.Builder;
-using Microsoft.EntityFrameworkCore.Diagnostics;
+﻿using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Shared.Data;
@@ -17,6 +15,8 @@ public static class BasketModule
         // 1.register Presentation (API / Endpoint) layer related services
 
         // 2.register Application / Use Case layer related services
+        services.AddScoped<IBasketRepository, BasketRepository>();
+        services.Decorate<IBasketRepository, CachedBasketRepository>();
 
         // 3.register Data / Infrastructure layer related services
         var connectionString = configuration.GetConnectionString("Database");

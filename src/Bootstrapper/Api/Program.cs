@@ -14,7 +14,13 @@ builder.Services.AddCarterWithAssemblies(catalogAssembly, basketAssembly);
 // 1.2 Register both MediatR and FluentValidation (from extension method)
 builder.Services.AddMediatRWithAssemblies(catalogAssembly, basketAssembly);
 
-// 2. Add MODULE services (catalog, basket, ordering) to the container
+// 1.3 Register Redis
+builder.Services.AddStackExchangeRedisCache(options =>
+{
+    options.Configuration = builder.Configuration.GetConnectionString("Redis");
+});
+
+// 2. Add MODULE related services (catalog, basket, ordering) to the container
 builder.Services
     .AddCatalogModule(builder.Configuration)
     .AddBasketModule(builder.Configuration)

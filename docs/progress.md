@@ -211,3 +211,15 @@ Same Carter + REPR pattern as Catalog. One endpoint file per feature under `Bask
 
 ## Step 20 — Centralized MediatR Registration (`Shared/Extensions/MediatRExtentions.cs`)
 MediatR + FluentValidation + both pipeline behaviors were being registered in every module. Moved into one extension `AddMediatRWithAssemblies(params Assembly[])` and called **once** in `Program.cs` with all module assemblies. Modules no longer register MediatR themselves.
+
+---
+
+## Step 21 — Basket Caching with Redis (Cache-Aside + Decorator)
+Distributed cache in front of the Basket repo, transparent to handlers. Code written, in order:
+- `docker-compose.yml` / `.override.yml` — `distributedcache` (`redis` image) + port `6379:6379`. No volume → cache disposable.
+- NuGet (`Shared`) — `Microsoft.Extensions.Caching.StackExchangeRedis` + `Scrutor` (for `Decorate<>()`).
+- `appsettings.json` — `ConnectionStrings:Redis = "localhost:6379"`.
+- `Program.cs` — `AddStackExchangeRedisCache(...)` → registers `IDistributedCache`.
+- `CachedBasketRepository : IBasketRepository` — cache-aside decorator: Redis first, DB on miss + write-back, invalidate on create/delete/save.
+- `BasketModule.cs` — `AddScoped<IBasketRepository, BasketRepository>()` + `Decorate<..., CachedBasketRepository>()`. Delete the `Decorate` line to turn caching off.
+- `ShoppingCartConverter` / `ShoppingCartItemConverter` + `[JsonConstructor]` on `ShoppingCartItem` — rich domain (private setters, read-only `_items`) can't be rehydrated by the default serializer; cart converter restores `_items` via reflection. (Naive — mature version uses a DTO.)
