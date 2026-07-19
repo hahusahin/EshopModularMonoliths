@@ -223,3 +223,23 @@ Distributed cache in front of the Basket repo, transparent to handlers. Code wri
 - `CachedBasketRepository : IBasketRepository` — cache-aside decorator: Redis first, DB on miss + write-back, invalidate on create/delete/save.
 - `BasketModule.cs` — `AddScoped<IBasketRepository, BasketRepository>()` + `Decorate<..., CachedBasketRepository>()`. Delete the `Decorate` line to turn caching off.
 - `ShoppingCartConverter` / `ShoppingCartItemConverter` + `[JsonConstructor]` on `ShoppingCartItem` — rich domain (private setters, read-only `_items`) can't be rehydrated by the default serializer; cart converter restores `_items` via reflection. (Naive — mature version uses a DTO.)
+
+---
+
+## Step 22 — Sync Inter-Module Communication (Basket → Catalog)
+`AddItemIntoBasket` was taking `Price` and `ProductName` from the client — anyone could set their own price. Fixed by letting Basket ask Catalog for the real product data, without Basket ever referencing the Catalog module.
+
+Done in two moves:
+
+**1. Split `Shared` into `Shared` + `Shared.Contracts`.** The CQRS interfaces moved out of `Shared` into a new, near-empty class library (MediatR only). Reason: `Shared` drags EF Core, Postgres, Redis and Carter with it, and a contract library must not carry infrastructure. `Shared` now references `Shared.Contracts`, never the reverse.
+
+**2. Created `Catalog.Contracts`** (references `Shared.Contracts` only) — Catalog's public API. Moved `ProductDto` and the `GetProductById` query/result records into it; the handler stayed `internal` inside `Catalog`. Catalog references its own contracts to implement them; Basket references them to consume them.
+
+`AddItemIntoBasketHandler` now injects `ISender` and sends `GetProductByIdQuery` before adding the item, using Catalog's price and name instead of the client's.
+
+| Rule | |
+|---|---|
+| `Shared.Contracts` depends on nothing but MediatR | bottom of the graph |
+| A `*.Contracts` project may only reference other `*.Contracts` projects | contracts carry no infrastructure |
+| `Basket → Catalog.Contracts` ✅ &nbsp; `Basket → Catalog` ❌ | module boundary |
+

@@ -1,4 +1,6 @@
-﻿namespace Basket.Basket.Features.AddItemIntoBasket;
+﻿using Catalog.Contracts.Products.Features.GetProductById;
+
+namespace Basket.Basket.Features.AddItemIntoBasket;
 
 public record AddItemIntoBasketCommand(string UserName, ShoppingCartItemDto ShoppingCartItem)
     : ICommand<AddItemIntoBasketResult>;
@@ -13,7 +15,8 @@ public class AddItemIntoBasketCommandValidator : AbstractValidator<AddItemIntoBa
     }
 }
 
-internal class AddItemIntoBasketHandler(IBasketRepository repository)
+internal class AddItemIntoBasketHandler
+    (IBasketRepository repository, ISender sender)
     : ICommandHandler<AddItemIntoBasketCommand, AddItemIntoBasketResult>
 {
     public async Task<AddItemIntoBasketResult> Handle(AddItemIntoBasketCommand command, CancellationToken cancellationToken)
@@ -21,13 +24,16 @@ internal class AddItemIntoBasketHandler(IBasketRepository repository)
         // Retrieve user's shopping cart
         var shoppingCart = await repository.GetBasket(command.UserName, false, cancellationToken);
 
+        // Get latest product information from catalog module instead of using the information that comes from client
+        var result = await sender.Send(new GetProductByIdQuery(command.ShoppingCartItem.ProductId), cancellationToken);
+
         // Add shopping cart item into shopping cart
         shoppingCart.AddItem(
                 command.ShoppingCartItem.ProductId,
                 command.ShoppingCartItem.Quantity,
                 command.ShoppingCartItem.Color,
-                command.ShoppingCartItem.Price,
-                command.ShoppingCartItem.ProductName);
+                result.Product.Price,  // make sure to use the latest price from catalog module
+                result.Product.Name);
 
         await repository.SaveChangesAsync(command.UserName, cancellationToken);
 
