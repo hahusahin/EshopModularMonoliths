@@ -243,3 +243,28 @@ Done in two moves:
 | A `*.Contracts` project may only reference other `*.Contracts` projects | contracts carry no infrastructure |
 | `Basket → Catalog.Contracts` ✅ &nbsp; `Basket → Catalog` ❌ | module boundary |
 
+---
+
+## Step 23 — Async Inter-Module Communication (Catalog → Basket) with RabbitMQ & MassTransit
+A price change in Catalog now updates the copies of that price sitting in every basket — over a message broker, not a direct call. Catalog and Basket never reference each other; both only know the shared message contract.
+
+**New project `Shared.Messaging`** (NuGet: `MassTransit`, `MassTransit.RabbitMQ`) — the contract library both modules reference:
+- `IntegrationEvent` — base record (`EventId`, `OccurredOn`, `EventType`)
+- `ProductPriceChangedIntegrationEvent : IntegrationEvent` — flat, primitive-only payload (no domain entities cross the boundary)
+- `MassTransitExtensions.AddMassTransitWithAssemblies(config, params Assembly[])` — scans assemblies for consumers/sagas, kebab-case queue names, `UsingRabbitMq(...)` with host from config. Called once in `Program.cs`.
+
+**Infrastructure:**
+- `docker-compose` — `messagebus` (`rabbitmq:management`), ports `5672` (AMQP) + `15672` (management UI)
+- `appsettings.json` — `MessageBroker` section (host, user, password)
+
+**Publish side (Catalog):** `ProductPriceChangedEventHandler` — the TODO from Step 9 is filled in. Injects `IBus`, maps the domain event to `ProductPriceChangedIntegrationEvent`, `bus.Publish(...)`.
+
+**Consume side (Basket):**
+- `ProductPriceChangedIntegrationEventHandler : IConsumer<ProductPriceChangedIntegrationEvent>` — MassTransit auto-discovers it and creates its queue at startup; forwards to MediatR
+- `UpdateItemPriceInBasketCommand` + handler — loads every `ShoppingCartItem` with that `ProductId` and updates each one
+- `ShoppingCartItem.UpdatePrice()` — new domain method
+
+**Flow:** `PUT /products` → `Product.Update()` raises domain event → interceptor → MediatR → Catalog handler publishes integration event → RabbitMQ → Basket consumer → MediatR command → items updated.
+
+Domain event = inside a module (MediatR, in-memory). Integration event = across modules (RabbitMQ, over the network).
+

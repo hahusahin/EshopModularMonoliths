@@ -4,7 +4,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseSerilog((context, config) =>
     config.ReadFrom.Configuration(context.Configuration));
 
-// 1. Add COMMON services (carter, mediatr, fluentvalidation) to the container
+// 1. Add COMMON services (carter, mediatr, fluentvalidation, masstransit) to the container
 var catalogAssembly = typeof(CatalogModule).Assembly;
 var basketAssembly = typeof(BasketModule).Assembly;
 
@@ -19,6 +19,9 @@ builder.Services.AddStackExchangeRedisCache(options =>
 {
     options.Configuration = builder.Configuration.GetConnectionString("Redis");
 });
+
+// 1.4 Register MassTransit
+builder.Services.AddMassTransitWithAssemblies(builder.Configuration, catalogAssembly, basketAssembly);
 
 // 2. Add MODULE related services (catalog, basket, ordering) to the container
 builder.Services
