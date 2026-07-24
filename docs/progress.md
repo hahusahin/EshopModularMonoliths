@@ -268,3 +268,8 @@ A price change in Catalog now updates the copies of that price sitting in every 
 
 Domain event = inside a module (MediatR, in-memory). Integration event = across modules (RabbitMQ, over the network).
 
+---
+
+## Step 24 — Authentication with Keycloak
+Identity moved out of the app entirely — almost no auth code was written. `identity` (`quay.io/keycloak/keycloak:24.0.3`, `start-dev`, port `9090:8080`) was added to `docker-compose`, persisting into the existing `eshopdb` Postgres under a separate `identity` schema. NuGet `Keycloak.AuthServices.Authentication` on `Api`, configured from the `Keycloak` section in `appsettings.json` (realm `myrealm`, client `myclient`, `verify-token-audience: false`); `Program.cs` calls `AddKeycloakWebApiAuthentication(...)` + `AddAuthorization()` and adds `app.UseAuthentication()` / `app.UseAuthorization()` to the pipeline — registration alone does nothing, the middleware is what runs per request. Every Basket endpoint got `.RequireAuthorization()`, and `CreateBasketEndpoint` now takes a `ClaimsPrincipal` parameter and overwrites the incoming DTO's `UserName` with `user.Identity.Name` (via a `with` expression), so a client can no longer write into someone else's basket. The API never calls Keycloak per request: JwtBearer downloads the realm's public keys once, caches them, and validates each token's signature / `exp` / `iss` locally.
+

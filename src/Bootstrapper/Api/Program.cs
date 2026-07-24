@@ -23,6 +23,10 @@ builder.Services.AddStackExchangeRedisCache(options =>
 // 1.4 Register MassTransit
 builder.Services.AddMassTransitWithAssemblies(builder.Configuration, catalogAssembly, basketAssembly);
 
+// 1.5 Register Keycloak authentication / authorization
+builder.Services.AddKeycloakWebApiAuthentication(builder.Configuration);
+builder.Services.AddAuthorization();
+
 // 2. Add MODULE related services (catalog, basket, ordering) to the container
 builder.Services
     .AddCatalogModule(builder.Configuration)
@@ -40,6 +44,9 @@ app.MapCarter();
 // Configure the HTTP request pipeline (middleware, custom exception handling, logging etc.)
 app.UseSerilogRequestLogging();
 app.UseExceptionHandler(options => { });
+
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.UseCatalogModule()
    .UseBasketModule()
