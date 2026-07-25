@@ -7,12 +7,13 @@ builder.Host.UseSerilog((context, config) =>
 // 1. Add COMMON services (carter, mediatr, fluentvalidation, masstransit) to the container
 var catalogAssembly = typeof(CatalogModule).Assembly;
 var basketAssembly = typeof(BasketModule).Assembly;
+var orderingAssembly = typeof(OrderingModule).Assembly;
 
 // 1.1 Register all staff to DI from the given assemblies that implements ICarterModule
-builder.Services.AddCarterWithAssemblies(catalogAssembly, basketAssembly);
+builder.Services.AddCarterWithAssemblies(catalogAssembly, basketAssembly, orderingAssembly);
 
 // 1.2 Register both MediatR and FluentValidation (from extension method)
-builder.Services.AddMediatRWithAssemblies(catalogAssembly, basketAssembly);
+builder.Services.AddMediatRWithAssemblies(catalogAssembly, basketAssembly, orderingAssembly);
 
 // 1.3 Register Redis
 builder.Services.AddStackExchangeRedisCache(options =>
