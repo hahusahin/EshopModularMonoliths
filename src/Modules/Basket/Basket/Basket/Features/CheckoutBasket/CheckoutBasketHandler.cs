@@ -16,67 +16,70 @@ public class CheckoutBasketCommandValidator : AbstractValidator<CheckoutBasketCo
     }
 }
 
-internal class CheckoutBasketHandler(BasketDbContext dbContext, IBasketRepository repository, IBus bus)
+internal class CheckoutBasketHandler(BasketDbContext dbContext)
     : ICommandHandler<CheckoutBasketCommand, CheckoutBasketResult>
 {
     public async Task<CheckoutBasketResult> Handle(CheckoutBasketCommand command, CancellationToken cancellationToken)
     {
-        //await using var transaction =
-        //    await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        await using var transaction =
+            await dbContext.Database.BeginTransactionAsync(cancellationToken);
 
-        //try
-        //{
-        //    // Get existing basket with total price
-        //    var basket = await dbContext.ShoppingCarts
-        //        .Include(x => x.Items)
-        //        .SingleOrDefaultAsync(x => x.UserName == command.BasketCheckout.UserName, cancellationToken);
+        try
+        {
+            // Get existing basket with total price
+            var basket = await dbContext.ShoppingCarts
+                .Include(x => x.Items)
+                .SingleOrDefaultAsync(x => x.UserName == command.BasketCheckout.UserName, cancellationToken);
 
-        //    if (basket == null)
-        //    {
-        //        throw new BasketNotFoundException(command.BasketCheckout.UserName);
-        //    }
+            if (basket == null)
+            {
+                throw new BasketNotFoundException(command.BasketCheckout.UserName);
+            }
 
-        //    // Set total price on basket checkout event message
-        //    var eventMessage = command.BasketCheckout.Adapt<BasketCheckoutIntegrationEvent>();
-        //    eventMessage.TotalPrice = basket.TotalPrice;
+            // Set total price on basket checkout event message
+            var eventMessage = command.BasketCheckout.Adapt<BasketCheckoutIntegrationEvent>();
+            eventMessage.TotalPrice = basket.TotalPrice;
+            eventMessage.Items = basket.Items
+                .Select(item => new BasketItemDto(item.ProductId, item.Quantity, item.Price, item.ProductName))
+                .ToList();
 
-        //    // Write a message to the outbox
-        //    var outboxMessage = new OutboxMessage
-        //    {
-        //        Id = Guid.NewGuid(),
-        //        Type = typeof(BasketCheckoutIntegrationEvent).AssemblyQualifiedName!,
-        //        Content = JsonSerializer.Serialize(eventMessage),
-        //        OccuredOn = DateTime.UtcNow
-        //    };
+            // Write the message to the outbox table
+            var outboxMessage = new OutboxMessage
+            {
+                Id = Guid.NewGuid(),
+                Type = typeof(BasketCheckoutIntegrationEvent).AssemblyQualifiedName!,
+                Content = JsonSerializer.Serialize(eventMessage),
+                OccuredOn = DateTime.UtcNow
+            };
 
-        //    dbContext.OutboxMessages.Add(outboxMessage);
+            dbContext.OutboxMessages.Add(outboxMessage);
 
-        //    // Delete the basket
-        //    dbContext.ShoppingCarts.Remove(basket);
+            // Delete the basket
+            dbContext.ShoppingCarts.Remove(basket);
 
-        //    await dbContext.SaveChangesAsync(cancellationToken);
-        //    await transaction.CommitAsync(cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
 
-        //    return new CheckoutBasketResult(true);
-        //}
-        //catch
-        //{
-        //    await transaction.RollbackAsync(cancellationToken);
-        //    return new CheckoutBasketResult(false);
-        //}
+            return new CheckoutBasketResult(true);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return new CheckoutBasketResult(false);
+        }
 
         ///////////////////// CHECKOUT BASKET WITHOUT OUTBOX
-        // get existing basket with total price
-        var basket =
-            await repository.GetBasket(command.BasketCheckout.UserName, true, cancellationToken);
-        // Set totalprice on basketcheckout event message
-        var eventMessage = command.BasketCheckout.Adapt<BasketCheckoutIntegrationEvent>();
-        eventMessage.TotalPrice = basket.TotalPrice;
-        // send basket checkout event to rabbitmq using masstransit
-        await bus.Publish(eventMessage, cancellationToken);
-        // delete the basket
-        await repository.DeleteBasket(command.BasketCheckout.UserName, cancellationToken);
-        return new CheckoutBasketResult(true);
+        //// get existing basket with total price
+        //var basket =
+        //    await repository.GetBasket(command.BasketCheckout.UserName, true, cancellationToken);
+        //// Set totalprice on basketcheckout event message
+        //var eventMessage = command.BasketCheckout.Adapt<BasketCheckoutIntegrationEvent>();
+        //eventMessage.TotalPrice = basket.TotalPrice;
+        //// send basket checkout event to rabbitmq using masstransit
+        //await bus.Publish(eventMessage, cancellationToken);
+        //// delete the basket
+        //await repository.DeleteBasket(command.BasketCheckout.UserName, cancellationToken);
+        //return new CheckoutBasketResult(true);
         ///////////////////// CHECKOUT BASKET WITHOUT OUTBOX
     }
 }

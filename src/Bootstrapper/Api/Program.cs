@@ -22,7 +22,7 @@ builder.Services.AddStackExchangeRedisCache(options =>
 });
 
 // 1.4 Register MassTransit
-builder.Services.AddMassTransitWithAssemblies(builder.Configuration, catalogAssembly, basketAssembly);
+builder.Services.AddMassTransitWithAssemblies(builder.Configuration, catalogAssembly, basketAssembly, orderingAssembly);
 
 // 1.5 Register Keycloak authentication / authorization
 builder.Services.AddKeycloakWebApiAuthentication(builder.Configuration);

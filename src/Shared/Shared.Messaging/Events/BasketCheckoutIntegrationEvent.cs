@@ -21,4 +21,9 @@ public record BasketCheckoutIntegrationEvent : IntegrationEvent
     public string Expiration { get; set; } = default!;
     public string Cvv { get; set; } = default!;
     public int PaymentMethod { get; set; } = default!;
+
+    // Order Items
+    public List<BasketItemDto> Items { get; set; } = new();
 }
+
+public record BasketItemDto(Guid ProductId, int Quantity, decimal Price, string ProductName);
